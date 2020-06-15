@@ -30,29 +30,35 @@
  * 14-Jun-2020  William Findlay  Created this.
  */
 
+#include <linux/errno.h>
+#include <uapi/asm/unistd_64.h>
+
 t:raw_syscalls:sys_enter {
-    @start[args->id, tid] = nsecs;
+    @start_id[tid] = args->id;
+    @start[tid] = nsecs;
 }
 
 t:raw_syscalls:sys_exit {
-    if (args->id < 0) {
+    if (args->id < 0 || args->id == __NR_restart_syscall) {
         return;
     }
-    @stop[args->id, tid] = nsecs;
 
-    @duration[args->id] += (@stop[args->id, tid] - @start[args->id, tid]);
-    @count[args->id] += (uint64)1;
+    $id = @start_id[tid];
 
-    @[ksym(*(kaddr("sys_call_table") + (uint64)args->id * 8))] = @duration[args->id] / @count[args->id];
+    @stop[tid] = nsecs;
+
+    @duration[$id, tid] += (@stop[tid] - @start[tid]);
+
+    @[ksym(*(kaddr("sys_call_table") + (uint64)$id * 8))] = avg(@duration[$id, tid]);
 }
 
 END {
     clear(@start);
+    clear(@start_id);
     clear(@stop);
     clear(@duration);
-    clear(@count);
 
-    printf("Printing average times in nanoseconds:\n");
+    printf("Printing average times in ns:\n");
     print(@);
     clear(@);
 }

@@ -31,34 +31,28 @@
  */
 
 #include <linux/errno.h>
-#include <uapi/asm/unistd_64.h>
 
 t:raw_syscalls:sys_enter {
-    @start_id[tid] = args->id;
-    @start[tid] = nsecs;
+    @start[tid] = (nsecs, args->id);
 }
 
 t:raw_syscalls:sys_exit {
-    if (args->id < 0 || args->id == __NR_restart_syscall) {
+    $start_t = @start[tid].0;
+    $start_id = @start[tid].1;
+    $id = args->id;
+
+    if ($id != $start_id) {
         return;
     }
 
-    $id = @start_id[tid];
-
-    @stop[tid] = nsecs;
-
-    @duration[$id, tid] += (@stop[tid] - @start[tid]);
-
-    @[ksym(*(kaddr("sys_call_table") + (uint64)$id * 8))] = avg(@duration[$id, tid]);
+    $dur = (nsecs - @start[tid].0);
+    @avg_t[ksym(*(kaddr("sys_call_table") + (uint64)$id * 8))] = avg($dur);
 }
 
 END {
     clear(@start);
-    clear(@start_id);
-    clear(@stop);
-    clear(@duration);
 
     printf("Printing average times in ns:\n");
-    print(@);
-    clear(@);
+    print(@avg_t);
+    clear(@avg_t);
 }

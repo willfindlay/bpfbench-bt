@@ -44,7 +44,6 @@ t:raw_syscalls:sys_exit {
     @count[args->id] += (uint64)1;
 
     @[ksym(*(kaddr("sys_call_table") + (uint64)args->id * 8))] = @duration[args->id] / @count[args->id];
-    //@[ksym(*(kaddr("sys_call_table") + (uint64)args->id * 8))] = avg(@duration[args->id]);
 }
 
 END {
